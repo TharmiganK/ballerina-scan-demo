@@ -73,6 +73,42 @@ Only the two findings on changed lines were annotated; the 30 pre-existing findi
 - **`$schema`** points at `schemastore.org` rather than the OASIS SARIF 2.1.0 URI. GitHub did not object.
 - **The published noncompliant example for `ballerina/os:1` and `ballerina/os:2` does not trigger those rules.** The documented example feeds HTTP request input (`req.getQueryParamValue(...)`) into `os:exec` / `os:setEnv`. Neither that, nor a resource path parameter, nor a query parameter, nor `os:getEnv` output triggers them. Both rules fire only on **command-line arguments to `main`**. Five variants were tested before finding the working shape.
 
+## GA preview: the same findings with the metadata the tool will emit
+
+`scripts/enrich_sarif.py` adds to a copy of the report what the scan tool is expected to emit at GA — severity, `security-severity`, CWE and OWASP tags, rule names and remediation text — and the workflow uploads it under its own category. The scan is identical; only the SARIF metadata differs.
+
+### What GitHub does with it
+
+| | Raw | GA preview |
+|---|---|---|
+| Alerts | 32 | 32 |
+| `security_severity_level: critical` | 0 | 1 |
+| `security_severity_level: high` | 0 | 8 |
+| `security_severity_level: medium` | 0 | 10 |
+| No security severity | 32 | 13 (the maintainability rules) |
+| Alerts carrying tags | 0 | 21 |
+| `severity: error` | 0 | 9 |
+| Rule name shown | *(empty — falls back to the rule id)* | e.g. "Command argument injection" |
+
+### The consequence that matters
+
+Both SARIFs were uploaded from the same workflow run on the same pull request commit. The two check runs:
+
+| Check | Conclusion | Title |
+|---|---|---|
+| `Ballerina Scan Tool` | **success** | 2 new alerts |
+| `Ballerina Scan Tool (GA preview)` | **failure** | 2 new alerts including 1 high severity security vulnerability |
+
+Identical findings, identical code, identical GitHub settings. The only variable is SARIF metadata, and it is the difference between a pull request that passes and one that is blocked.
+
+That is the whole argument for emitting severity and CWE metadata from the tool, in one line of evidence.
+
+### Alerts cannot be compared side by side in one repository
+
+Uploading the enriched SARIF under a different `category` **and** a different tool name did not create a second set of alerts. GitHub matched the enriched results to the existing alerts by rule id, location and fingerprint, and updated them in place: alerts #29–32 kept their numbers and their original `created_at`, but their tool became `Ballerina Scan Tool (GA preview)` and their category `bal-scan-ga-preview`.
+
+Two things follow. A before/after comparison has to be sequential, captured from the API between uploads, rather than parallel. And alert identity survived a tool rename, a category change and a wholesale metadata rewrite — further evidence of how stable identity is once fingerprints exist.
+
 ## Untested
 
 - Packages **not** at the repository root. SARIF `artifactLocation.uri` is relative to the *package* root, so a package in a subdirectory would emit URIs that do not resolve against the repo — which could break both annotations and fingerprint generation. This repository has the package at the root, the favourable case.
