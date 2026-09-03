@@ -58,6 +58,34 @@ jobs:
           name: scan-results-sarif
           path: target/report/scan_results.sarif
 
+      # ---------------------------------------------------------------
+      # GA preview.
+      #
+      # The scan tool does not yet emit rule metadata, so this step adds it to
+      # a copy of the report: severity, security-severity, CWE and OWASP tags,
+      # rule names and remediation text. It is uploaded under its own category
+      # and tool name so the two can be compared side by side in the same
+      # repository -- see RESULTS.md.
+      #
+      # This is a preview of GA plan items 1.1 and 1.4, not a proposal for how
+      # the tool should work. At GA this metadata comes from the rule model.
+      # ---------------------------------------------------------------
+      - name: Build the GA-preview SARIF
+        run: python3 scripts/enrich_sarif.py target/report/scan_results.sarif target/report/scan_results_ga_preview.sarif
+
+      - name: Upload the GA-preview SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: target/report/scan_results_ga_preview.sarif
+          category: bal-scan-ga-preview
+
+      - name: Keep the GA-preview SARIF as an artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scan-results-ga-preview-sarif
+          path: target/report/scan_results_ga_preview.sarif
+
       # Severity gate.
       #
       # This keys off the SARIF `level`, where every security rule is currently
