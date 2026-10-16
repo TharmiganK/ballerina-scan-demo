@@ -21,6 +21,9 @@ public final class BackupJob {
         builder.environment().put("PGDATABASE", args[0]);
         int exitCode = builder.inheritIO().start().waitFor();
         reportResult(args[0], exitCode, true);
+
+        // Vulnerable: ballerina/os:1, ballerina/os:4 (CWE-78, CWE-426) - the database name from the command line goes straight into tar's arguments.
+        new ProcessBuilder("tar", "-czf", "backup.tgz", args[0]).inheritIO().start().waitFor();
     }
 
     // Vulnerable: ballerina:2 (CWE-561) - verbose is never read.

@@ -26,6 +26,7 @@ type UserRecord record {|
 |};
 
 isolated table<UserRecord> key(username) users = table [];
+isolated map<string> serviceAccountSecrets = {};
 
 final byte[16] & readonly piiKey = loadPiiKey("keys/pii.key");
 
@@ -36,6 +37,15 @@ service /auth on new http:Listener(9093) {
         byte[] encryptedNationalId = check encryptNationalId(registration.nationalId);
         lock {
             users.add({username: registration.username, passwordHash, encryptedNationalId: encryptedNationalId.clone()});
+        }
+        return http:CREATED;
+    }
+
+    resource function post service\-accounts(Credentials credentials) returns http:Created|error {
+        // Vulnerable: ballerina/crypto:2 - service account secrets get the same fast work factor of 4.
+        string secretHash = check crypto:hashBcrypt(credentials.password, 4);
+        lock {
+            serviceAccountSecrets[credentials.username] = secretHash;
         }
         return http:CREATED;
     }

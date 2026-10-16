@@ -4,9 +4,20 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"io"
 	"net/http"
+	"os"
 	"sync"
 )
+
+var carrierGatewayURL = getenv("CARRIER_GATEWAY_URL", "http://carriers.internal.example.com")
+
+func getenv(key, fallback string) string {
+	if v, ok := os.LookupEnv(key); ok {
+		return v
+	}
+	return fallback
+}
 
 type Status string
 
@@ -40,6 +51,7 @@ func Register(mux *http.ServeMux) {
 	mux.Handle("GET /orders/{id}", withCors(http.HandlerFunc(getOrder)))
 	mux.Handle("POST /orders", withCors(http.HandlerFunc(createOrder)))
 	mux.Handle("GET /orders/checkout/{returnUrl}", withCors(http.HandlerFunc(checkout)))
+	mux.Handle("GET /orders/{id}/tracking/{carrier}", withCors(http.HandlerFunc(trackShipment)))
 	// Vulnerable: ballerina/http:1 (CWE-352) - the legacy sync endpoint answers every HTTP method, including unsafe ones.
 	mux.HandleFunc("/legacy/sync", legacySync)
 }
@@ -91,6 +103,18 @@ func createOrder(w http.ResponseWriter, r *http.Request) {
 // Vulnerable: ballerina/http:4 (CWE-601) - the client chooses where the browser is sent after checkout.
 func checkout(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, r.PathValue("returnUrl"), http.StatusTemporaryRedirect)
+}
+
+// Vulnerable: ballerina/http:3 (CWE-918) - the caller picks the carrier path the gateway calls (SSRF).
+func trackShipment(w http.ResponseWriter, r *http.Request) {
+	resp, err := http.Get(carrierGatewayURL + "/carriers/" + r.PathValue("carrier") + "/shipments/" + r.PathValue("id"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = io.Copy(w, resp.Body)
 }
 
 func legacySync(w http.ResponseWriter, _ *http.Request) {

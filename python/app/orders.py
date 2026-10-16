@@ -1,5 +1,7 @@
+import os
 import uuid
 
+import requests
 from flask import Blueprint, abort, redirect, request
 from flask_cors import CORS
 
@@ -8,6 +10,8 @@ legacy = Blueprint("legacy", __name__, url_prefix="/legacy")
 
 # Vulnerable: ballerina/http:2 (CWE-942) - any origin may call the API with the user's credentials.
 CORS(orders, origins="*", supports_credentials=True)
+
+CARRIER_GATEWAY_URL = os.environ.get("CARRIER_GATEWAY_URL", "http://carriers.internal.example.com")
 
 _orders: dict[str, dict] = {}
 
@@ -36,6 +40,13 @@ def create_order():
     }
     _orders[order["id"]] = order
     return order, 201
+
+
+@orders.get("/<order_id>/tracking/<carrier>")
+def track_shipment(order_id: str, carrier: str):
+    # Vulnerable: ballerina/http:3 (CWE-918) - the caller picks the carrier path the gateway calls (SSRF).
+    tracking = requests.get(f"{CARRIER_GATEWAY_URL}/carriers/{carrier}/shipments/{order_id}", timeout=10)
+    return tracking.json()
 
 
 @orders.get("/checkout/<path:return_url>")

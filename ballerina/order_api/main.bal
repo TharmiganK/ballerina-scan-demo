@@ -2,6 +2,7 @@ import ballerina/http;
 import ballerina/uuid;
 
 configurable int port = 9090;
+configurable string carrierGatewayUrl = "http://carriers.internal.example.com";
 
 enum OrderStatus {
     PENDING,
@@ -59,6 +60,13 @@ service /orders on new http:Listener(port) {
             orders.add('order.clone());
         }
         return {body: 'order};
+    }
+
+    // Vulnerable: ballerina/http:3 - the caller picks the carrier path the gateway calls (SSRF).
+    resource function get [string id]/tracking/[string carrier]() returns json|error {
+        http:Client gateway = check new (carrierGatewayUrl);
+        json tracking = check gateway->/carriers/[carrier]/shipments/[id];
+        return tracking;
     }
 
     // Vulnerable: ballerina/http:4 - the client chooses where the browser is sent after checkout.

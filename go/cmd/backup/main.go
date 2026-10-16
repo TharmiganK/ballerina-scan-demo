@@ -39,7 +39,9 @@ func run(args []string) error {
 		return err
 	}
 	reportResult(args[0], exitCode, true)
-	return nil
+
+	// Vulnerable: ballerina/os:1 (CWE-78) and ballerina/os:4 (CWE-426) - the database name from the command line goes straight into tar's arguments.
+	return exec.Command("tar", "-czf", "backup.tgz", args[0]).Run()
 }
 
 // Vulnerable: ballerina:2 (CWE-561) - verbose is never read.
