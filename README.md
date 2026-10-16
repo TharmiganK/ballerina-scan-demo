@@ -1,44 +1,39 @@
-# bal scan → SARIF → GitHub code scanning
+# Code scanning comparison: Ballerina, Go, Java, Python
 
 > [!WARNING]
-> **The Ballerina code in this repository is deliberately vulnerable.**
-> It exists solely to exercise the [`bal scan`](https://ballerina.io/learn/scan-tool/) static analysis tool and to verify how its SARIF output behaves in GitHub code scanning. Do not copy any of it into real software.
+> **Every sample in this repository is deliberately vulnerable.** It exists only to exercise static analysis tools and to compare how their findings appear in GitHub code scanning. Do not copy any of it into real software.
 
 ## What this is
 
-A single Ballerina package that triggers **all 15 `bal scan` security rules**, plus several language rules, scanned in CI and published to GitHub code scanning.
+The same five integrations, with the same vulnerabilities, written in four languages and scanned by each language's code scanning action:
 
-Two purposes:
+| Language | Directory | Scanned by | Workflow |
+|---|---|---|---|
+| Ballerina | [`ballerina/`](ballerina) (a workspace) | [`scan-ballerina`](https://github.com/CharanaManawathilake/scan-ballerina) | [`ballerina-scan.yml`](.github/workflows/ballerina-scan.yml) |
+| Go | [`go/`](go) | CodeQL, gosec | [`codeql.yml`](.github/workflows/codeql.yml), [`gosec.yml`](.github/workflows/gosec.yml) |
+| Java | [`java/`](java) | CodeQL | [`codeql.yml`](.github/workflows/codeql.yml) |
+| Python | [`python/`](python) | CodeQL, Bandit | [`codeql.yml`](.github/workflows/codeql.yml), [`bandit.yml`](.github/workflows/bandit.yml) |
 
-1. A **reference GitHub Actions workflow** for running `bal scan` and publishing results — see [`.github/workflows/scan.yml`](.github/workflows/scan.yml).
-2. **Empirical verification** of how the SARIF actually behaves once GitHub has it. Findings are recorded in [`RESULTS.md`](RESULTS.md).
+`main` carries the baseline findings shown in the Security tab. Pull requests add new findings to compare how each tool reports them on the pull request.
 
-## What triggers what
+## The integrations
 
-| File | Rules |
-|---|---|
-| `crypto_rules.bal` | `ballerina/crypto:1` insecure cipher mode · `:2` weak password hashing · `:3` reused IV |
-| `http_rules.bal` | `ballerina/http:1` default resource accessor · `:2` permissive CORS · `:3` SSRF · `:4` open redirect |
-| `file_io_rules.bal` | `ballerina/file:1` publicly writable directory · `:2` path injection · `ballerina/io:1` path injection |
-| `os_rules.bal` | `ballerina/os:1` command argument injection · `:2` environment variable injection |
-| `auth_rules.bal` | `ballerina/jwt:1` unsigned JWT · `ballerina/email:1` TLS hostname verification disabled |
-| `log_rules.bal` | `ballerina/log:1` sensitive configurable values logged |
-| `language_rules.bal` | `ballerina:1` checkpanic · `:2` unused parameter · `:10` self-assignment |
+| Ballerina package | Scenario | `bal scan` rules |
+|---|---|---|
+| `order_api` | REST order service with a checkout redirect | `ballerina/http:1`, `:2`, `:4` |
+| `webhook_relay` | Forwards webhooks to subscribers and emails delivery failures | `ballerina/http:3`, `ballerina/email:1`, `ballerina/log:1` |
+| `document_store` | Upload, download and delete documents | `ballerina/file:1`, `:2`, `ballerina/io:1` |
+| `auth_service` | Registration, JWT issuing, PII encryption | `ballerina/jwt:1`, `ballerina/crypto:1`, `:2`, `:3`, `ballerina:1`, `:3`, `:14` |
+| `backup_job` | CLI database backup | `ballerina/os:1`, `:2`, `:4`, `ballerina:2`, `:10` |
 
-The crypto and auth samples use `public function`, so they also trigger `ballerina:3` (non-isolated public function). That is intentional — it puts more than one rule kind in the report.
+The Go, Java and Python ports use the same names and reproduce each vulnerability in the shape `bal scan` detects. Every sink carries a `Vulnerable: <ballerina rule> (CWE-n)` comment, so the same finding can be traced across languages.
 
-## Running it locally
+## Running the scanners locally
 
 ```bash
-bal tool pull scan
-bal scan --format=sarif      # writes target/report/scan_results.sarif
-bal scan                     # writes target/report/scan_results.json
+(cd ballerina && bal scan --format=sarif)        # ballerina/target/report/scan_results.sarif
+(cd go && gosec -no-fail -fmt sarif -out gosec.sarif ./...)
+bandit -r python -f sarif -o bandit.sarif
 ```
 
-`--format=sarif` writes **only** the SARIF file; it does not also produce the JSON report. Run the command twice if you need both.
-
-## Two things worth knowing before you copy the workflow
-
-**`bal scan` always exits 0.** A failed scan produces an empty result set, which uploads cleanly and tells GitHub that every previous alert is fixed. The workflow asserts that the SARIF exists and is non-empty before uploading.
-
-**The severity gate counts SARIF `level == "warning"`, not `error`.** `bal scan` derives the SARIF level from the rule *kind*: `VULNERABILITY → warning`, `CODE_SMELL → note`, `BUG → error`. Since no rule is currently classified `BUG`, **nothing ever emits `error`** — so a gate written against `error` can never fire. Today every security rule is `warning` and every language rule is `note`, which makes `warning` a usable proxy for "security finding".
+The earlier single-package experiment against scan tool 0.11.0 is kept in [`docs/archive/results-scan-0.11.0.md`](docs/archive/results-scan-0.11.0.md).

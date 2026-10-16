@@ -1,0 +1,2 @@
+[workspace]
+packages = ["order_api", "webhook_relay", "document_store", "auth_service", "backup_job"]

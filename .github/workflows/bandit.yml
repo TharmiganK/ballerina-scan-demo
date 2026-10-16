@@ -1,0 +1,23 @@
+name: Bandit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: bandit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - uses: PyCQA/bandit-action@v1.0.1
+        with:
+          targets: python

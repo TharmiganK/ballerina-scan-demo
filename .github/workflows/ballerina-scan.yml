@@ -1,0 +1,33 @@
+name: Ballerina scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: bal scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - id: scan
+        uses: CharanaManawathilake/scan-ballerina@e477f3832d9d9124e14bfc468d9b1158b109958e # main
+        with:
+          ballerina-version: 2201.14.1
+          paths: ballerina
+          platforms: github-code-scanning
+          annotations: true
+          artifacts: true
+          fail-on-severity: high
+          # The gate counts every finding, not only new ones, so it ratchets on the high findings main already has.
+          max-findings: 10
