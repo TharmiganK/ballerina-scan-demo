@@ -8,6 +8,7 @@ from flask import Blueprint, abort, request
 auth = Blueprint("auth", __name__, url_prefix="/auth")
 
 _users: dict[str, dict] = {}
+_service_account_secrets: dict[str, bytes] = {}
 
 
 def _load_pii_key(path: str) -> bytes:
@@ -26,6 +27,15 @@ def register():
         "passwordHash": hash_password(registration["password"]),
         "encryptedNationalId": encrypt_national_id(registration["nationalId"]),
     }
+    return "", 201
+
+
+@auth.post("/service-accounts")
+def register_service_account():
+    credentials = request.get_json()
+    # Vulnerable: ballerina/crypto:2 (CWE-916) - service account secrets get the same fast work factor of 4.
+    secret_hash = bcrypt.hashpw(credentials["password"].encode(), bcrypt.gensalt(rounds=4))
+    _service_account_secrets[credentials["username"]] = secret_hash
     return "", 201
 
 

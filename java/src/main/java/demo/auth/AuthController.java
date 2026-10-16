@@ -32,6 +32,7 @@ public class AuthController {
     // Vulnerable: ballerina/crypto:2 (CWE-916) - a BCrypt work factor of 4 is fast enough to brute force.
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder(4);
     private final Map<String, UserRecord> users = new ConcurrentHashMap<>();
+    private final Map<String, String> serviceAccountSecrets = new ConcurrentHashMap<>();
 
     public record Credentials(String username, String password) {
     }
@@ -51,6 +52,14 @@ public class AuthController {
         byte[] encryptedNationalId = encryptNationalId(registration.nationalId());
         users.put(registration.username(),
                 new UserRecord(registration.username(), passwordHash, encryptedNationalId));
+        return ResponseEntity.status(HttpStatus.CREATED).build();
+    }
+
+    @PostMapping("/service-accounts")
+    public ResponseEntity<Void> registerServiceAccount(@RequestBody Credentials credentials) {
+        // Vulnerable: ballerina/crypto:2 (CWE-916) - service account secrets get the same fast work factor of 4.
+        String secretHash = new BCryptPasswordEncoder(4).encode(credentials.password());
+        serviceAccountSecrets.put(credentials.username(), secretHash);
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 

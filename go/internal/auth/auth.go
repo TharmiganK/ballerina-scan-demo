@@ -35,14 +35,34 @@ type userRecord struct {
 }
 
 var (
-	mu     sync.Mutex
-	users  = map[string]userRecord{}
-	piiKey = loadPiiKey("keys/pii.key")
+	mu                    sync.Mutex
+	users                 = map[string]userRecord{}
+	serviceAccountSecrets = map[string][]byte{}
+	piiKey                = loadPiiKey("keys/pii.key")
 )
 
 func Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /auth/users", register)
 	mux.HandleFunc("POST /auth/tokens", issue)
+	mux.HandleFunc("POST /auth/service-accounts", registerServiceAccount)
+}
+
+func registerServiceAccount(w http.ResponseWriter, r *http.Request) {
+	var creds Credentials
+	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	// Vulnerable: ballerina/crypto:2 (CWE-916) - service account secrets get the same fast work factor of 4.
+	secretHash, err := bcrypt.GenerateFromPassword([]byte(creds.Password), 4)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	mu.Lock()
+	serviceAccountSecrets[creds.Username] = secretHash
+	mu.Unlock()
+	w.WriteHeader(http.StatusCreated)
 }
 
 func register(w http.ResponseWriter, r *http.Request) {

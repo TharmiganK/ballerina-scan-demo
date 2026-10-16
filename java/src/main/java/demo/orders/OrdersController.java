@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.RestClient;
 
 // Vulnerable: ballerina/http:2 (CWE-942) - any origin may call the API with the user's credentials.
 @CrossOrigin(originPatterns = "*", allowCredentials = "true")
@@ -25,6 +27,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class OrdersController {
 
     private final Map<String, Order> orders = new ConcurrentHashMap<>();
+    private final RestClient carrierGateway;
+    private final String carrierGatewayUrl;
+
+    public OrdersController(
+            @Value("${carrier.gateway-url:http://carriers.internal.example.com}") String carrierGatewayUrl) {
+        this.carrierGateway = RestClient.create();
+        this.carrierGatewayUrl = carrierGatewayUrl;
+    }
 
     @GetMapping
     public List<Order> listOrders() {
@@ -43,6 +53,15 @@ public class OrdersController {
                 OrderStatus.PENDING);
         orders.put(order.id(), order);
         return ResponseEntity.status(HttpStatus.CREATED).body(order);
+    }
+
+    // Vulnerable: ballerina/http:3 (CWE-918) - the caller picks the carrier path the gateway calls (SSRF).
+    @GetMapping("/{id}/tracking/{carrier}")
+    public String trackShipment(@PathVariable String id, @PathVariable String carrier) {
+        return carrierGateway.get()
+                .uri(carrierGatewayUrl + "/carriers/" + carrier + "/shipments/" + id)
+                .retrieve()
+                .body(String.class);
     }
 
     // Vulnerable: ballerina/http:4 (CWE-601) - the client chooses where the browser is sent after checkout.

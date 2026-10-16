@@ -14,7 +14,10 @@ def main(args: list[str]) -> int:
     # Vulnerable: ballerina/os:1 (CWE-88) and ballerina/os:4 (CWE-426) - command-line input is passed to pg_dump, found through PATH.
     dump = subprocess.run(["pg_dump", *args])
     report_result(args[0], dump.returncode, True)
-    return dump.returncode
+
+    # Vulnerable: ballerina/os:1 (CWE-88) and ballerina/os:4 (CWE-426) - the database name from the command line goes straight into tar's arguments.
+    archive = subprocess.run(["tar", "-czf", "backup.tgz", args[0]])
+    return dump.returncode or archive.returncode
 
 
 # Vulnerable: ballerina:2 (CWE-561) - verbose is never read.

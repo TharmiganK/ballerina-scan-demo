@@ -13,6 +13,10 @@ public function main(string... args) returns error? {
     os:Process dump = check os:exec({value: "pg_dump", arguments: args});
     int exitCode = check dump.waitForExit();
     reportResult(args[0], exitCode, true);
+
+    // Vulnerable: ballerina/os:1 - the database name from the command line goes straight into tar's arguments.
+    os:Process archive = check os:exec({value: "tar", arguments: ["-czf", "backup.tgz", args[0]]});
+    _ = check archive.waitForExit();
 }
 
 // Vulnerable: ballerina:2 - verbose is never read.
