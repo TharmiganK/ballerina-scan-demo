@@ -16,6 +16,8 @@ The same five integrations, with the same vulnerabilities, written in four langu
 
 `main` carries the baseline findings shown in the Security tab. Pull requests add new findings to compare how each tool reports them on the pull request.
 
+**Results:** [`docs/COMPARISON.md`](docs/COMPARISON.md) maps each `bal scan` rule to what CodeQL, gosec and Bandit report for the same code, and records how each tool's findings appeared on pull request #1.
+
 ## The integrations
 
 | Ballerina package | Scenario | `bal scan` rules |
